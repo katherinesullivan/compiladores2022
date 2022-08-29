@@ -1,0 +1,17 @@
+let mult1 = fix (mul: Nat -> Nat -> Nat) (m : Nat) -> fun (n : Nat) -> ifz n then 0 else (ifz n - 1 then m else m + (mul m (n - 1)))
+
+let fact1 = fix (fac: Nat -> Nat) (n : Nat) -> ifz n then 1 else mult1 n (fac (n - 1))
+
+let gcd1 = fix (gcd : Nat -> Nat -> Nat) (m : Nat) -> fun (n : Nat) -> ifz n then m else (ifz m then n else (ifz n-m then gcd (m-n) n else gcd m (n-m)))
+
+let exp1 = fix (exp : Nat -> Nat -> Nat) (n : Nat) -> fun (m : Nat) -> ifz m then 1 else mult1 n (exp n (m-1))
+
+let Rnat = fun (z : Nat) -> fun (s : Nat -> Nat -> Nat) -> fix (f : Nat -> Nat) (n : Nat) -> ifz n then z else s (f (n-1)) n 
+
+let resta = fun (m : Nat) -> fun (n : Nat) -> m - n
+
+let suma = fun (m : Nat) -> fun (n : Nat) -> m + n
+
+let minim1 = fix (mini : Nat -> (Nat -> Nat) -> Nat) (z : Nat) -> fun (f : Nat -> Nat) -> ifz f z then z else mini (z+1) f
+
+let minimizacion = fun (f : Nat -> Nat) -> minim1 0 f
