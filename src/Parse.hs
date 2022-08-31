@@ -127,13 +127,19 @@ binding = do v <- var
              ty <- typeP
              return (v, ty)
 
+binders :: P [(Name, Ty)]
+binders = try (do x <- parens binding 
+                  xs <- binders
+                  return (x:xs)) <|> return []
+               
+
 lam :: P STerm
 lam = do i <- getPos
          reserved "fun"
-         (v,ty) <- parens binding
+         xs <- binders
          reservedOp "->"
          t <- expr
-         return (SLam i (v,ty) t)
+         return (SLam i xs t)
 
 -- Nota el parser app también parsea un solo atom.
 app :: P STerm
@@ -155,22 +161,23 @@ ifz = do i <- getPos
 fix :: P STerm
 fix = do i <- getPos
          reserved "fix"
-         (f, fty) <- parens binding
-         (x, xty) <- parens binding
+         xs <- binders
          reservedOp "->"
          t <- expr
-         return (SFix i (f,fty) (x,xty) t)
+         return (SFix i xs t)
 
 letexp :: P STerm
 letexp = do
   i <- getPos
   reserved "let"
-  (v,ty) <- parens binding
+  isrec <- try (reserved "rec" >> return True) <|> return False
+  l <- binders
   reservedOp "="  
   def <- expr
   reserved "in"
   body <- expr
-  return (SLet i (v,ty) def body)
+  return (SLet i isrec l def body)
+
 
 -- | Parser de términos
 tm :: P STerm

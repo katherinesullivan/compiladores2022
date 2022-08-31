@@ -143,4 +143,6 @@ El modulo PPrint exporta las siguientes funciones:
 Al abrir un termino con un nombre n es necesario que este no se encuentre libre en el mismo. Para asegurarse de que este no suceda la funcion openAll lleva en su primer argumento una lista con los nombres que ya fueron abiertos en el termino. Con asegurarnos de que no se abran nombres que ya fueron abiertos 
 
 
+## Ejercicio 12
 
+Para agregar una nueva construccion de terminos al lenguaje 
