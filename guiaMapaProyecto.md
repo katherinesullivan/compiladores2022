@@ -2,7 +2,7 @@
 
 a) El AST del lenguaje se encuentra definido en Lang.hs
 
-b) Tanto Term como TTerm representan terminos del lenguaje, ambos formandolos con un argumento Tm (el termino en si), un argumento Pos (posicion en el archivo) y un argumento Var (variables -- un tipo que representa la union disjunta de indices de de Bruijn, nombres locales (nombres que surgen de abrir un t ́ermino), y nombres globales (nombres de definiciones top-level)).
+b) Tanto Term como TTerm representan terminos del lenguaje, ambos formandolos con un argumento Tm (el termino en si), un argumento Pos (posicion en el archivo) y un argumento Var (variables -- un tipo que representa la union disjunta de indices de de Bruijn, nombres locales (nombres que surgen de abrir un término), y nombres globales (nombres de definiciones top-level)).
 
 La diferencia radica en que TTerm tambien cuenta con el tipo del termino en el que estamos posicionados. (creo)
 
@@ -41,7 +41,7 @@ declOrTm :: P (Either (Decl STerm) STerm)
 declOrTm =  try (Left <$> decl) <|> (Right <$> expr)
 ```
 
-Como la funcion Parse.declOrTm parsea o bien una declaracion top-level o un termino, necesitamos que el operador choice ejecute su segunda opcion aun cuando el primer parser falla habiendo consumido input; como el operador try permite que se ejecute el parser que le es pasado como parametro y hace como que no consumio entrada necesitamos el try para realizar el parseo correcto. 
+Como la funcion Parse.declOrTm parsea o bien una declaracion top-level o un termino, necesitamos que el operador choice ejecute su segunda opcion aún cuando el primer parser falla habiendo consumido input; como el operador try permite que se ejecute el parser que le es pasado como parametro y hace como que no consumio entrada necesitamos el try para realizar el parseo correcto. 
 
 ## Ejercicio 4
 
@@ -113,7 +113,7 @@ Al ejecutar
 
     let f = fun (x:Nat) -> print "Prueba 2" (x + x)
 
-Sucedera lo mismo con la salvedad de que ahora cada vez que se utilice la variable f se efectuara la impresion correspondiente porque siempre se evalua la sentencioa print.
+Sucedera lo mismo con la salvedad de que ahora cada vez que se utilice la variable f (con una aplicación) se efectuara la impresion correspondiente porque siempre se evalua la sentencia print.
 
 ## Ejercicio 9
 
@@ -127,7 +127,7 @@ sera:
     Hola 2
     2 : Nat
 
-Esto porque primero se evalua el termino entre parentesis y luego el print de afuera, para por ultimo devolver el valor al que evalua la expresion en su totalidad.
+Esto es porque los argumentos de una función se evalúan antes de hacer la sustitución, por lo que primero se evalua el término entre parentesis y luego el print de afuera, para por último devolver el valor al que evalua la expresion en su totalidad.
 
 ## Ejercicio 10
 
@@ -140,9 +140,9 @@ El modulo PPrint exporta las siguientes funciones:
 
 ## Ejercicio 11
 
-Al abrir un termino con un nombre n es necesario que este no se encuentre libre en el mismo. Para asegurarse de que este no suceda la funcion openAll lleva en su primer argumento una lista con los nombres que ya fueron abiertos en el termino. Con asegurarnos de que no se abran nombres que ya fueron abiertos 
+Al abrir un termino con un nombre n es necesario que este no se encuentre libre en el mismo. Para asegurarse de que esto no suceda la función openAll lleva en su primer argumento una lista con los nombres que ya fueron abiertos en el término. Con asegurarnos de que no se utilicen nombres para abrir variables ligadas que se encuentran en dicha lista es suficiente.
 
 
 ## Ejercicio 12
 
-Para agregar una nueva construccion de terminos al lenguaje 
+Para agregar una nueva construccion de terminos al lenguaje ..

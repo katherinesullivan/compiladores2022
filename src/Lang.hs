@@ -29,12 +29,20 @@ data STm info ty var =
   | SConst info Const
   | SLam info [(var, ty)] (STm info ty var)
   | SApp info (STm info ty var) (STm info ty var)
-  | SPrint info String (STm info ty var)
+  | SPrint info String 
   | SBinaryOp info BinaryOp (STm info ty var) (STm info ty var)
   | SFix info [(var, ty)] (STm info ty var)
   | SIfZ info (STm info ty var) (STm info ty var) (STm info ty var)
   | SLet info Bool [(var, ty)] (STm info ty var) (STm info ty var)
   deriving (Show, Functor)
+
+
+-- | AST de Tipos Superficiales
+data STy =
+      NatSTy
+    | FunSTy STy STy
+    | DeclSTy Name STy
+    deriving (Show,Eq)
 
 -- | AST de Tipos
 data Ty =
@@ -52,10 +60,23 @@ newtype Const = CNat Int
 data BinaryOp = Add | Sub
   deriving Show
 
+
+-- | tipo de datos de declaraciones superficiales, parametrizado por el tipo del cuerpo de la declaración
+data SDecl a = SDecl
+  { sdeclPos :: Pos
+  , sdeclRec :: Bool
+  , sdeclName :: Name
+  , sdeclType :: Ty
+  , sdeclBinds :: [(Name, Ty)]
+  , sdeclBody :: a
+  }
+  deriving (Show, Functor)
+
 -- | tipo de datos de declaraciones, parametrizado por el tipo del cuerpo de la declaración
 data Decl a = Decl
   { declPos  :: Pos
   , declName :: Name
+  , declType :: Ty
   , declBody :: a
   }
   deriving (Show, Functor)
@@ -73,7 +94,7 @@ data Tm info var =
   | BinaryOp info BinaryOp (Tm info var) (Tm info var)
   | Fix info Name Ty Name Ty (Scope2 info var)
   | IfZ info (Tm info var) (Tm info var) (Tm info var)
-  | Let info Name Ty (Tm info var)  (Scope info var)
+  | Let info Name Ty (Tm info var) (Scope info var)
   deriving (Show, Functor)
 
 

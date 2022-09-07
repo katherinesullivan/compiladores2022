@@ -91,7 +91,7 @@ typeP = try (do
           reservedOp "->"
           y <- typeP
           return (FunTy x y))
-      <|> tyatom
+        <|> tyatom
           
 const :: P Const
 const = CNat <$> num
@@ -101,8 +101,7 @@ printOp = do
   i <- getPos
   reserved "print"
   str <- option "" stringLiteral
-  a <- atom
-  return (SPrint i str a)
+  return (SPrint i str)
 
 binary :: String -> BinaryOp -> Assoc -> Operator String () Identity STerm
 binary s f = Ex.Infix (reservedOp s >> return (SBinaryOp NoPos f))
@@ -130,7 +129,9 @@ binding = do v <- var
 binders :: P [(Name, Ty)]
 binders = try (do x <- parens binding 
                   xs <- binders
-                  return (x:xs)) <|> return []
+                  return (x:xs)) 
+          <|> 
+          return []
                
 
 lam :: P STerm
@@ -171,35 +172,57 @@ letexp = do
   i <- getPos
   reserved "let"
   isrec <- try (reserved "rec" >> return True) <|> return False
-  l <- binders
+  xs <- (
+    try binders -- para permitir parentesis
+    <|>
+    (do v <- var -- para permitir notación amigable en funciones y un binder sin parentesis
+        l <- binders
+        reservedOp ":"
+        ty <- typeP
+        return ((v, ty):l)) -- estoy agregando la función con el tipo de retorno (el último, no los intermedios) como primer elemento de la lista
+   )
   reservedOp "="  
   def <- expr
   reserved "in"
   body <- expr
-  return (SLet i isrec l def body)
+  return (SLet i isrec xs def body)
 
 
 -- | Parser de términos
 tm :: P STerm
-tm = app <|> lam <|> ifz <|> printOp <|> fix <|> letexp
+tm = app <|> lam <|> ifz -- <|> printOp 
+     <|> fix <|> letexp
 
 -- | Parser de declaraciones
-decl :: P (Decl STerm)
+decl :: P (SDecl STerm)
 decl = do 
      i <- getPos
      reserved "let"
+     isrec <- (try (reserved "rec" >> return True)) <|> return False
      v <- var
+     binds <- binders
+     reservedOp ":"
+     ty <- typeP
      reservedOp "="
      t <- expr
-     return (Decl i v t)
+     return (SDecl i isrec v ty binds t)
+
+-- decl :: P (Decl STerm)
+-- decl = do 
+--      i <- getPos
+--      reserved "let"
+--      v <- var
+--      reservedOp "="
+--      t <- expr
+--      return (Decl i v t)
 
 -- | Parser de programas (listas de declaraciones) 
-program :: P [Decl STerm]
+program :: P [SDecl STerm]
 program = many decl
 
 -- | Parsea una declaración a un término
 -- Útil para las sesiones interactivas
-declOrTm :: P (Either (Decl STerm) STerm)
+declOrTm :: P (Either (SDecl STerm) STerm)
 declOrTm =  try (Left <$> decl) <|> (Right <$> expr)
 
 -- Corre un parser, chequeando que se pueda consumir toda la entrada
