@@ -81,16 +81,20 @@ getPos :: P Pos
 getPos = do pos <- getPosition
             return $ Pos (sourceLine pos) (sourceColumn pos)
 
-tyatom :: P Ty
-tyatom = (reserved "Nat" >> return NatTy)
-         <|> parens typeP
+tyatom :: P STy
+tyatom = (reserved "Nat" >> return NatSTy)
+         <|> 
+         (do t <- tyIdentifier
+             return (DeclSTy t))
+         <|>
+         parens typeP
 
-typeP :: P Ty
+typeP :: P STy
 typeP = try (do 
           x <- tyatom
           reservedOp "->"
           y <- typeP
-          return (FunTy x y))
+          return (FunSTy x y))
         <|> tyatom
           
 const :: P Const
@@ -120,13 +124,13 @@ atom =     (flip SConst <$> const <*> getPos)
        <|> printOp
 
 -- parsea un par (variable : tipo)
-binding :: P (Name, Ty)
+binding :: P (Name, STy)
 binding = do v <- var
              reservedOp ":"
              ty <- typeP
              return (v, ty)
 
-binders :: P [(Name, Ty)]
+binders :: P [(Name, STy)]
 binders = try (do x <- parens binding 
                   xs <- binders
                   return (x:xs)) 
@@ -207,18 +211,19 @@ decl = do
      t <- expr
      return (SDecl i isrec v ty binds t)
 
--- decl :: P (Decl STerm)
--- decl = do 
---      i <- getPos
---      reserved "let"
---      v <- var
---      reservedOp "="
---      t <- expr
---      return (Decl i v t)
+-- | Parser de declaraciones de sinonimos de tipo
+declSTy :: P (SDecl STerm)
+declSTy = do 
+       i <- getPos
+       reserved "type"
+       v <- var
+       reservedOp "="
+       ty <- typeP
+       return (STDecl i v ty)
 
 -- | Parser de programas (listas de declaraciones) 
 program :: P [SDecl STerm]
-program = many decl
+program = many (try decl <|> declSTy) --
 
 -- | Parsea una declaración a un término
 -- Útil para las sesiones interactivas

@@ -21,6 +21,7 @@ module MonadFD4 (
   runFD4,
   lookupDecl,
   lookupTy,
+  lookupDeclTy,
   printFD4,
   setLastFile,
   getLastFile,
@@ -111,6 +112,10 @@ lookupTy nm = do
       s <- get
       return $ lookup nm (tyEnv s)
 
+lookupDeclTy :: MonadFD4 m => Name -> m (Maybe Ty)
+lookupDeclTy name = do s <- get
+                       return $ lookup name (glbT s)
+                       
 failPosFD4 :: MonadFD4 m => Pos -> String -> m a
 failPosFD4 p s = throwError (ErrPos p s)
 

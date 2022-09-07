@@ -36,6 +36,7 @@ import Prettyprinter
       Pretty(pretty) )
 import MonadFD4 ( gets, MonadFD4 )
 import Global ( GlEnv(glb) )
+import Data.Text.Prettyprint.Doc.Render.Terminal (AnsiStyle)
 
 freshen :: [Name] -> Name -> Name
 freshen ns n = let cands = n : map (\i -> n ++ show i) [0..] 
@@ -93,13 +94,14 @@ ppName :: Name -> String
 ppName = id
 
 -- | Pretty printer para tipos (Doc)
-ty2doc :: Ty -> Doc AnsiStyle
-ty2doc NatTy     = typeColor (pretty "Nat")
-ty2doc (FunTy x@(FunTy _ _) y) = sep [parens (ty2doc x), typeOpColor (pretty "->"),ty2doc y]
-ty2doc (FunTy x y) = sep [ty2doc x, typeOpColor (pretty "->"),ty2doc y] 
+ty2doc :: STy -> Doc AnsiStyle
+ty2doc NatSTy     = typeColor (pretty "Nat")
+ty2doc (FunSTy x@(FunSTy _ _) y) = sep [parens (ty2doc x), typeOpColor (pretty "->"),ty2doc y]
+ty2doc (FunTy x y) = sep [ty2doc x, typeOpColor (pretty "->"),ty2doc y]
+ty2doc (DeclSTy name) = name2doc name
 
 -- | Pretty printer para tipos (String)
-ppTy :: Ty -> String
+ppTy :: STy -> String
 ppTy = render . ty2doc
 
 c2doc :: Const -> Doc AnsiStyle
@@ -128,10 +130,10 @@ t2doc :: Bool     -- Debe ser un átomo?
 {- t2doc at x = text (show x) -}
 t2doc at (SV _ x) = name2doc x
 t2doc at (SConst _ c) = c2doc c
-t2doc at (SLam _ (v,ty) t) =
+t2doc at (SLam _ xs t) =
   parenIf at $
   sep [sep [ keywordColor (pretty "fun")
-           , binding2doc (v,ty)
+           , binders2doc xs
            , opColor(pretty "->")]
       , nest 2 (t2doc False t)]
 
@@ -140,11 +142,10 @@ t2doc at t@(SApp _ _ _) =
   parenIf at $
   t2doc True h <+> sep (map (t2doc True) ts)
 
-t2doc at (SFix _ (f,fty) (x,xty) m) =
+t2doc at (SFix _ xs m) =
   parenIf at $
   sep [ sep [keywordColor (pretty "fix")
-                  , binding2doc (f, fty)
-                  , binding2doc (x, xty)
+                  , binders2doc xs
                   , opColor (pretty "->") ]
       , nest 2 (t2doc False m)
       ]
@@ -154,15 +155,19 @@ t2doc at (SIfZ _ c t e) =
      , keywordColor (pretty "then"), nest 2 (t2doc False t)
      , keywordColor (pretty "else"), nest 2 (t2doc False e) ]
 
-t2doc at (SPrint _ str t) =
+t2doc at (SPrint _ str) =
   parenIf at $
   sep [keywordColor (pretty "print"), pretty (show str), t2doc True t]
 
-t2doc at (SLet _ (v,ty) t t') =
+t2doc at (SLet _ isrec ((x,xty):xs) t t') =
   parenIf at $
   sep [
     sep [keywordColor (pretty "let")
-       , binding2doc (v,ty)
+       , if isrec then keywordColor (pretty "rec") else Empty
+       , binding2doc x
+       , binders2doc xs
+       , pretty ":"
+       , ty2doc xty
        , opColor (pretty "=") ]
   , nest 2 (t2doc False t)
   , keywordColor (pretty "in")
@@ -172,9 +177,13 @@ t2doc at (SBinaryOp _ o a b) =
   parenIf at $
   t2doc True a <+> binary2doc o <+> t2doc True b
 
-binding2doc :: (Name, Ty) -> Doc AnsiStyle
+binding2doc :: (Name, STy) -> Doc AnsiStyle
 binding2doc (x, ty) =
   parens (sep [name2doc x, pretty ":", ty2doc ty])
+
+binders2doc :: [(Name, STy)] -> Doc AnsiStyle
+binders2doc [] = Empty
+binders2doc (x:xs) = sep [binding2doc x, binders2doc xs]
 
 -- | Pretty printing de términos (String)
 pp :: MonadFD4 m => TTerm -> m String
