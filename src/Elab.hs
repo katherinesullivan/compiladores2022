@@ -10,11 +10,13 @@ Este módulo permite elaborar términos y declaraciones para convertirlas desde
 fully named (@STerm) a locally closed (@Term@)
 -}
 
-module Elab ( elab, elabDecl) where
+module Elab ( elab, elabDecl, elabTypes) where
 
 import Lang
 import Subst
 import MonadFD4
+import Parse
+import Global
 
 elabTypes :: MonadFD4 m => STy -> m Ty
 elabTypes NatSTy = return NatTy
@@ -90,9 +92,18 @@ buildtype [] t = t
 buildtype ((_,y):ys) t = FunSTy y (buildtype ys t)
 
 
-elabDecl :: SDecl STerm -> Decl Term
-elabDecl (SDecl p False v vty [] t) = Decl p v vty (elab t)
-elabDecl (SDecl p False v vty ((x,xty):xs) t) = Decl p v (buildtype xs (FunTy xty vty)) (elab (SLam p ((x,xty):xs) t))
+elabDecl :: MonadFD4 m => SDecl STerm -> m (Decl Term)
+elabDecl (SDecl p False v vty [] t) = do t' <- elab t
+                                         vty' <- elabTypes vty
+                                         return (Decl p v vty' t')
+elabDecl (SDecl p False v vty ((x,xty):xs) t) = do t' <- elab (SLam p ((x,xty):xs) t)
+                                                   nt <- elabTypes (buildtype xs (FunSTy xty vty))
+                                                   return (Decl p v nt t')
 elabDecl (SDecl p True v vty [] t) = failPosFD4 p "Declaración recursiva sin suficientes argumentos"
-elabDecl (SDecl p True v vty ((x,xty):xs) t) | xs == [] = Decl p v (FunTy xty vty) (elab (Fix p v (FunTy xty vty) x xty (close2 v x (elab' [v,x] t))))
-                                             | otherwise = elabDecl (SDecl p True v (buildType xs vty) [(x,xty)] (SLam p xs t))
+elabDecl (SDecl p True v vty ((x,xty):xs) t) | xs == [] = do t' <- elab' [v,x] t
+                                                             xty' <- elabTypes xty
+                                                             vty' <- elabTypes vty
+                                                             return (Decl p v (FunTy xty' vty') (Fix p v (FunTy xty' vty') x xty' (close2 v x t')))
+                                             | otherwise = elabDecl (SDecl p True v (buildtype xs vty) [(x,xty)] (SLam p xs t))
+elabDecl (STDecl p n t) = do t' <- elabTypes t
+                             return (TDecl p n t')

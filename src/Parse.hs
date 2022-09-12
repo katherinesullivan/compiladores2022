@@ -177,14 +177,13 @@ letexp = do
   reserved "let"
   isrec <- try (reserved "rec" >> return True) <|> return False
   xs <- (
-    try binders -- para permitir parentesis
+    try (do v <- var -- para permitir notación amigable en funciones y un binder sin parentesis
+            l <- binders
+            reservedOp ":"
+            ty <- typeP
+            return ((v, ty):l)) -- estoy agregando la función con el tipo de retorno (el último, no los intermedios) como primer elemento de la lista
     <|>
-    (do v <- var -- para permitir notación amigable en funciones y un binder sin parentesis
-        l <- binders
-        reservedOp ":"
-        ty <- typeP
-        return ((v, ty):l)) -- estoy agregando la función con el tipo de retorno (el último, no los intermedios) como primer elemento de la lista
-   )
+    binders) -- para permitir parentesis
   reservedOp "="  
   def <- expr
   reserved "in"

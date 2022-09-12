@@ -54,20 +54,30 @@ openAll gp ns (V p v) = case v of
       Global x -> SV (gp p) x
 openAll gp ns (Const p c) = SConst (gp p) c
 openAll gp ns (Lam p x ty t) = 
-  let x' = freshen ns x 
-  in SLam (gp p) (x',ty) (openAll gp (x':ns) (open x' t))
+  let x' = freshen ns x
+      t' = open x' t
+  in case t' of
+      (Lam )
+    SLam (gp p) (x',ty) (openAll gp (x':ns) (open x' t))
 openAll gp ns (App p t u) = SApp (gp p) (openAll gp ns t) (openAll gp ns u)
-openAll gp ns (Fix p f fty x xty t) = 
-  let 
-    x' = freshen ns x
-    f' = freshen (x':ns) f
-  in SFix (gp p) (f',fty) (x',xty) (openAll gp (x:f:ns) (open2 f' x' t))
+openAll gp ns (Fix p f fty x xty t) = -- faltaria revisar los tipos
+  let x' = freshen ns x
+      f' = freshen (x':ns) f
+      fun = openAll gp (x:f:ns) (open2 f' x' t)
+  in case fun of
+      (SLam _ xs nt) -> SFix (gp p) ((f',fty):(x',xty):xs) nt
+      term -> SFix (gp p) [(f',fty),(x',xty)] term
 openAll gp ns (IfZ p c t e) = SIfZ (gp p) (openAll gp ns c) (openAll gp ns t) (openAll gp ns e)
-openAll gp ns (Print p str t) = SPrint (gp p) str (openAll gp ns t)
+openAll gp ns (Print p str t) = SPrint (gp p) str (openAll gp ns t) -- falta modif
 openAll gp ns (BinaryOp p op t u) = SBinaryOp (gp p) op (openAll gp ns t) (openAll gp ns u)
 openAll gp ns (Let p v ty m n) = 
-    let v'= freshen ns v 
-    in  SLet (gp p) (v',ty) (openAll gp ns m) (openAll gp (v':ns) (open v' n))
+    let v' = freshen ns v
+        def = openAll gp ns m
+        body = openAll gp (v':ns) (open v' n)
+    in case def of
+        (SLam i xs t) -> SLet (gp p) False ((v',ty):xs)      
+      
+      SLet (gp p) (v',ty) (openAll gp ns m) (openAll gp (v':ns) (open v' n))
 
 --Colores
 constColor :: Doc AnsiStyle -> Doc AnsiStyle
@@ -183,7 +193,7 @@ binding2doc (x, ty) =
 
 binders2doc :: [(Name, STy)] -> Doc AnsiStyle
 binders2doc [] = Empty
-binders2doc (x:xs) = sep [binding2doc x, binders2doc xs]
+binders2doc xs = parens (sep (map binding2doc xs))
 
 -- | Pretty printing de términos (String)
 pp :: MonadFD4 m => TTerm -> m String

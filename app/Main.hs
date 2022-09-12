@@ -127,26 +127,29 @@ parseIO filename p x = case runP p x filename of
                   Left e  -> throwError (ParseErr e)
                   Right r -> return r
 
-handleDecl ::  MonadFD4 m => Decl STerm -> m ()
+handleDecl ::  MonadFD4 m => SDecl STerm -> m () 
 handleDecl d = do
         m <- getMode
         case m of
           Interactive -> do
-              (Decl p x tt) <- typecheckDecl d
-              te <- eval tt
-              addDecl (Decl p x te)
+              d' <- typecheckDecl d
+              (case d' of
+                Nothing -> return ()
+                Just (Decl p x tt) ->
+                  do te <- eval tt
+                     addDecl (Decl p x te))
           Typecheck -> do
               f <- getLastFile
               printFD4 ("Chequeando tipos de "++f)
               td <- typecheckDecl d
-              addDecl td
-              -- opt <- getOpt
-              -- td' <- if opt then optimize td else td
-              ppterm <- ppDecl td  --td'
-              printFD4 ppterm
-
+              (case td of
+                do addDecl td
+                   -- opt <- getOpt
+                   -- td' <- if opt then optimize td else td
+                   ppterm <- ppDecl td  --td'
+                   printFD4 ppterm)
       where
-        typecheckDecl :: MonadFD4 m => Decl STerm -> m (Decl TTerm)
+        typecheckDecl :: MonadFD4 m => SDecl STerm -> m (Maybe (Decl TTerm))  -- hay que modificarlo
         typecheckDecl (Decl p x t) = tcDecl (Decl p x (elab t))
 
 

@@ -52,7 +52,7 @@ data Ty =
 
 type Name = String
 
-type STerm = STm Pos STy Name -- ^ 'STm' tiene 'Name's como variables ligadas y libres y globales, guarda posición  
+type STerm = STm Pos STy Name -- ^ 'STm', términos superficiales con tipos superficiales, tiene 'Name's como variables ligadas y libres y globales, guarda posición
 
 newtype Const = CNat Int
   deriving Show
