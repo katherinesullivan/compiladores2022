@@ -32,7 +32,7 @@ import Lang
 import Parse ( P, tm, program, declOrTm, runP )
 import Elab ( elab )
 import Eval ( eval )
-import CEK ( seek )
+import CEK ( evalCEK )
 import PPrint ( pp , ppTy, ppDecl )
 import MonadFD4
 import TypeChecker ( tc, tcDecl )
@@ -140,8 +140,7 @@ handleDecl d = do
                 (TDecl p x ty) -> do ty' <- lookupDeclTy x
                                      case ty' of
                                         Nothing -> addTy (x, ty) >> return ()
-                                        Just _ -> failPosFD4 p $ "Sinónimo de tipo ya declarado: "++x 
-              )
+                                        (Just _) -> failPosFD4 p $ "Sinónimo de tipo ya declarado: "++x )
           Typecheck -> do
               f <- getLastFile
               printFD4 ("Chequeando tipos de "++f)
@@ -155,19 +154,16 @@ handleDecl d = do
                 (TDecl p x ty) -> do ty' <- lookupDeclTy x
                                      case ty' of
                                         Nothing -> addTy (x, ty) >> return ()
-                                        Just _ -> failPosFD4 p $ "Sinónimo de tipo ya declarado: "++x 
-              )
+                                        Just _ -> failPosFD4 p $ "Sinónimo de tipo ya declarado: "++x )
           InteractiveCEK -> do
               d' <- typecheckDecl d
               (case d' of
-                (Decl p x ty tt) -> do v <- seek tt [] []
-                                       tt' <- val2tterm v p ty -- puedo usar el ty definido por el usuario (la idea seria que tcDecl lo chequee previamente)
+                (Decl p x ty tt) -> do tt' <- evalCEK tt'
                                        addDecl (Decl p x ty tt')
                 (TDecl p x ty) -> do ty' <- lookupDeclTy x
                                      case ty' of
                                         Nothing -> addTy (x, ty) >> return ()
-                                        Just _ -> failPosFD4 p $ "Sinónimo de tipo ya declarado: "++x 
-              )
+                                        Just _ -> failPosFD4 p $ "Sinónimo de tipo ya declarado: "++x )
       where
         typecheckDecl :: MonadFD4 m => SDecl STerm -> m (Decl TTerm)
         typecheckDecl (Decl p x t) = do d' <- elabDecl

@@ -14,7 +14,8 @@ module PPrint (
     pp,
     ppTy,
     ppName,
-    ppDecl
+    ppDecl,
+    ty2sty
     ) where
 
 import Lang
@@ -56,27 +57,31 @@ openAll gp ns (Const p c) = SConst (gp p) c
 openAll gp ns (Lam p x ty t) = 
   let x' = freshen ns x
       t' = open x' t
-  in case t' of
-      (Lam p2 x2 ty2 t2) -> SLam (gp p) [(x',ty)] (openAll gp (x':ns) t)
+      ty' = ty2sty ty
+  in SLam (gp p) [(x',ty')] (openAll gp (x':ns) t')
 openAll gp ns (App p t u) = SApp (gp p) (openAll gp ns t) (openAll gp ns u)
 openAll gp ns (Fix p f fty x xty t) = -- faltaria revisar los tipos
-  let x' = freshen ns x
-      f' = freshen (x':ns) f
-      fun = openAll gp (x:f:ns) (open2 f' x' t)
-  in case fun of
-      (SLam _ xs nt) -> SFix (gp p) ((f',fty):(x',xty):xs) nt
-      term -> SFix (gp p) [(f',fty),(x',xty)] term
+  let f' = freshen ns f
+      x' = freshen (f':ns) x
+      t' = open2 f' x' t
+      fty' = ty2sty fty
+      xty' = ty2sty xty
+   in SFix (gp p) [(f',fty'),(x',xty')] (openAll gp (f':x':ns) t')
 openAll gp ns (IfZ p c t e) = SIfZ (gp p) (openAll gp ns c) (openAll gp ns t) (openAll gp ns e)
-openAll gp ns (Print p str t) = SPrint (gp p) str (openAll gp ns t) -- falta modif
+openAll gp ns (Print p str t) = SApp (gp p) (SPrint (gp p) str) (openAll gp ns t)
 openAll gp ns (BinaryOp p op t u) = SBinaryOp (gp p) op (openAll gp ns t) (openAll gp ns u)
 openAll gp ns (Let p v ty m n) = 
     let v' = freshen ns v
+        ty' = ty2sty ty
         def = openAll gp ns m
         body = openAll gp (v':ns) (open v' n)
-    in case def of
-        (SLam i xs t) -> SLet (gp p) False ((v',ty):xs)      
-      
-      SLet (gp p) (v',ty) (openAll gp ns m) (openAll gp (v':ns) (open v' n))
+    in SLet (gp p) False [(v',ty')] def body
+
+
+ty2sty :: Ty -> STy 
+ty2sty NatTy = NatSTy
+ty2sty (FunTy ty1 ty2) = FunSTy (ty2sty ty1) (ty2sty ty2)
+
 
 --Colores
 constColor :: Doc AnsiStyle -> Doc AnsiStyle
@@ -106,7 +111,7 @@ ppName = id
 ty2doc :: STy -> Doc AnsiStyle
 ty2doc NatSTy     = typeColor (pretty "Nat")
 ty2doc (FunSTy x@(FunSTy _ _) y) = sep [parens (ty2doc x), typeOpColor (pretty "->"),ty2doc y]
-ty2doc (FunTy x y) = sep [ty2doc x, typeOpColor (pretty "->"),ty2doc y]
+ty2doc (FunSTy x y) = sep [ty2doc x, typeOpColor (pretty "->"),ty2doc y]
 ty2doc (DeclSTy name) = name2doc name
 
 -- | Pretty printer para tipos (String)
@@ -166,14 +171,14 @@ t2doc at (SIfZ _ c t e) =
 
 t2doc at (SPrint _ str) =
   parenIf at $
-  sep [keywordColor (pretty "print"), pretty (show str), t2doc True t]
+  sep [keywordColor (pretty "print"), pretty (show str)]
 
 t2doc at (SLet _ isrec ((x,xty):xs) t t') =
   parenIf at $
   sep [
     sep [keywordColor (pretty "let")
-       , if isrec then keywordColor (pretty "rec") else Empty
-       , binding2doc x
+       , if isrec then keywordColor (pretty "rec") else pretty ""
+       , binding2doc (x,xty)
        , binders2doc xs
        , pretty ":"
        , ty2doc xty
@@ -191,7 +196,7 @@ binding2doc (x, ty) =
   parens (sep [name2doc x, pretty ":", ty2doc ty])
 
 binders2doc :: [(Name, STy)] -> Doc AnsiStyle
-binders2doc [] = Empty
+binders2doc [] = pretty ""
 binders2doc xs = parens (sep (map binding2doc xs))
 
 -- | Pretty printing de términos (String)
@@ -207,11 +212,14 @@ render = unpack . renderStrict . layoutSmart defaultLayoutOptions
 
 -- | Pretty printing de declaraciones
 ppDecl :: MonadFD4 m => Decl TTerm -> m String
-ppDecl (Decl p x t) = do 
+ppDecl (Decl p x ty t) = do 
   gdecl <- gets glb
   return (render $ sep [defColor (pretty "let")
                        , name2doc x 
+                       , defColor (pretty ":")
+                       , ty2doc (ty2sty ty)
                        , defColor (pretty "=")] 
                    <+> nest 2 (t2doc False (openAll fst (map declName gdecl) t)))
-                         
+
+
 
