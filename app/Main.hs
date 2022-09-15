@@ -104,7 +104,7 @@ repl args = do
                        b <- lift $ catchErrors $ handleCommand c
                        maybe loop (`when` loop) b
 
-loadFile ::  MonadFD4 m => FilePath -> m [Decl STerm]
+loadFile ::  MonadFD4 m => FilePath -> m [SDecl STerm]
 loadFile f = do
     let filename = reverse(dropWhile isSpace (reverse f))
     x <- liftIO $ catch (readFile filename)
@@ -112,7 +112,7 @@ loadFile f = do
                          hPutStrLn stderr ("No se pudo abrir el archivo " ++ filename ++ ": " ++ err)
                          return "")
     setLastFile filename
-    parseIO filename program x
+    parseIO filename program x -- necesito algo para que quede [Decl STerm] -> program es SDecl STerm
 
 compileFile ::  MonadFD4 m => FilePath -> m ()
 compileFile f = do
