@@ -32,6 +32,7 @@ import Lang
 import Parse ( P, tm, program, declOrTm, runP )
 import Elab ( elab )
 import Eval ( eval )
+import CEK ( seek )
 import PPrint ( pp , ppTy, ppDecl )
 import MonadFD4
 import TypeChecker ( tc, tcDecl )
@@ -45,7 +46,7 @@ prompt = "FD4> "
 parseMode :: Parser (Mode,Bool)
 parseMode = (,) <$>
       (flag' Typecheck ( long "typecheck" <> short 't' <> help "Chequear tipos e imprimir el término")
-  -- <|> flag' InteractiveCEK (long "interactiveCEK" <> short 'k' <> help "Ejecutar interactivamente en la CEK")
+      <|> flag' InteractiveCEK (long "interactiveCEK" <> short 'k' <> help "Ejecutar interactivamente en la CEK")
   -- <|> flag' Bytecompile (long "bytecompile" <> short 'm' <> help "Compilar a la BVM")
   -- <|> flag' RunVM (long "runVM" <> short 'r' <> help "Ejecutar bytecode en la BVM")
       <|> flag Interactive Interactive ( long "interactive" <> short 'i' <> help "Ejecutar en forma interactiva")
@@ -134,23 +135,43 @@ handleDecl d = do
           Interactive -> do
               d' <- typecheckDecl d
               (case d' of
-                Nothing -> return ()
-                Just (Decl p x tt) ->
-                  do te <- eval tt
-                     addDecl (Decl p x te))
+                (Decl p x ty tt) -> do te <- eval tt
+                                       addDecl (Decl p x ty te)
+                (TDecl p x ty) -> do ty' <- lookupDeclTy x
+                                     case ty' of
+                                        Nothing -> addTy (x, ty) >> return ()
+                                        Just _ -> failPosFD4 p $ "Sinónimo de tipo ya declarado: "++x 
+              )
           Typecheck -> do
               f <- getLastFile
               printFD4 ("Chequeando tipos de "++f)
               td <- typecheckDecl d
               (case td of
-                do addDecl td
-                   -- opt <- getOpt
-                   -- td' <- if opt then optimize td else td
-                   ppterm <- ppDecl td  --td'
-                   printFD4 ppterm)
+                td@(Decl p x ty tt) -> do addDecl td
+                                          -- opt <- getOpt
+                                          -- td' <- if opt then optimize td else td
+                                          ppterm <- ppDecl td  --td'
+                                          printFD4 ppterm
+                (TDecl p x ty) -> do ty' <- lookupDeclTy x
+                                     case ty' of
+                                        Nothing -> addTy (x, ty) >> return ()
+                                        Just _ -> failPosFD4 p $ "Sinónimo de tipo ya declarado: "++x 
+              )
+          InteractiveCEK -> do
+              d' <- typecheckDecl d
+              (case d' of
+                (Decl p x ty tt) -> do v <- seek tt [] []
+                                       tt' <- val2tterm v p ty -- puedo usar el ty definido por el usuario (la idea seria que tcDecl lo chequee previamente)
+                                       addDecl (Decl p x ty tt')
+                (TDecl p x ty) -> do ty' <- lookupDeclTy x
+                                     case ty' of
+                                        Nothing -> addTy (x, ty) >> return ()
+                                        Just _ -> failPosFD4 p $ "Sinónimo de tipo ya declarado: "++x 
+              )
       where
-        typecheckDecl :: MonadFD4 m => SDecl STerm -> m (Maybe (Decl TTerm))  -- hay que modificarlo
-        typecheckDecl (Decl p x t) = tcDecl (Decl p x (elab t))
+        typecheckDecl :: MonadFD4 m => SDecl STerm -> m (Decl TTerm)
+        typecheckDecl (Decl p x t) = do d' <- elabDecl
+                                        return (tcDecl d')
 
 
 data Command = Compile CompileForm

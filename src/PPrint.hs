@@ -57,8 +57,7 @@ openAll gp ns (Lam p x ty t) =
   let x' = freshen ns x
       t' = open x' t
   in case t' of
-      (Lam )
-    SLam (gp p) (x',ty) (openAll gp (x':ns) (open x' t))
+      (Lam p2 x2 ty2 t2) -> SLam (gp p) [(x',ty)] (openAll gp (x':ns) t)
 openAll gp ns (App p t u) = SApp (gp p) (openAll gp ns t) (openAll gp ns u)
 openAll gp ns (Fix p f fty x xty t) = -- faltaria revisar los tipos
   let x' = freshen ns x
