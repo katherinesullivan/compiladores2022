@@ -33,6 +33,7 @@ module MonadFD4 (
   failPosFD4,
   failFD4,
   addDecl,
+  addTy,
   catchErrors,
   MonadFD4,
   module Control.Monad.Except,

@@ -49,8 +49,7 @@ freshen ns n = let cands = n : map (\i -> n ++ show i) [0..]
 -- Estos nombres se encuentran en la lista ns (primer argumento).
 openAll :: (i -> Pos) -> [Name] -> Tm i Var -> STerm
 openAll gp ns (V p v) = case v of 
-      Bound i ->  SV (gp p) $ "(Bound "++show i++")" --este caso no debería aparecer
-                                               --si el término es localmente cerrado
+      Bound i ->  SV (gp p) $ "(Bound "++show i++")" --este caso no debería aparecer si el término es localmente cerrado
       Free x -> SV (gp p) x
       Global x -> SV (gp p) x
 openAll gp ns (Const p c) = SConst (gp p) c
@@ -60,7 +59,7 @@ openAll gp ns (Lam p x ty t) =
       ty' = ty2sty ty
   in SLam (gp p) [(x',ty')] (openAll gp (x':ns) t')
 openAll gp ns (App p t u) = SApp (gp p) (openAll gp ns t) (openAll gp ns u)
-openAll gp ns (Fix p f fty x xty t) = -- faltaria revisar los tipos
+openAll gp ns (Fix p f fty x xty t) = 
   let f' = freshen ns f
       x' = freshen (f':ns) x
       t' = open2 f' x' t

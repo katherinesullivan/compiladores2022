@@ -105,13 +105,21 @@ domCod tt = case getTy tt of
 -- | 'tcDecl' chequea el tipo de una declaración
 -- y la agrega al entorno de tipado de declaraciones globales
 tcDecl :: MonadFD4 m  => Decl Term -> m (Decl TTerm)
-tcDecl (Decl p n ty t) = do -- falta agregar el ty como argumento dentro de Decl, seria correcto que lo comparase con el tipo que se obtiene de tt???
-    --chequear si el nombre ya está declarado
+tcDecl (Decl p n ty t) = do
+    -- chequear si el nombre ya está declarado
     mty <- lookupTy n
     case mty of
-        Nothing -> do  --no está declarado 
+        Nothing -> do -- no está declarado 
                   s <- get
                   tt <- tc t (tyEnv s)
                   expect ty tt                 
                   return (Decl p n ty tt)
         Just _  -> failPosFD4 p $ n ++" ya está declarado"
+tcDecl (TDecl p n ty) = do
+    -- chequear si el nombre ya está declarado
+    mty <- lookupDeclTy n
+    case mty of
+        Nothing -> return (TDecl p n ty) -- no está declarado, no la agrego al entorno porque eso se hace en main
+        Just _  -> failPosFD4 p $ n ++" ya está declarado"
+                      
+

@@ -30,10 +30,10 @@ import Global
 import Errors
 import Lang
 import Parse ( P, tm, program, declOrTm, runP )
-import Elab ( elab )
+import Elab ( elab, elabDecl )
 import Eval ( eval )
 import CEK ( evalCEK )
-import PPrint ( pp , ppTy, ppDecl )
+import PPrint ( pp , ppTy, ppDecl, ty2sty )
 import MonadFD4
 import TypeChecker ( tc, tcDecl )
 
@@ -146,11 +146,11 @@ handleDecl d = do
               printFD4 ("Chequeando tipos de "++f)
               td <- typecheckDecl d
               (case td of
-                td@(Decl p x ty tt) -> do addDecl td
-                                          -- opt <- getOpt
-                                          -- td' <- if opt then optimize td else td
-                                          ppterm <- ppDecl td  --td'
-                                          printFD4 ppterm
+                decl@(Decl p x ty tt) -> do addDecl decl
+                                            -- opt <- getOpt
+                                            -- td' <- if opt then optimize td else td
+                                            ppterm <- ppDecl decl  --td'
+                                            printFD4 ppterm
                 (TDecl p x ty) -> do ty' <- lookupDeclTy x
                                      case ty' of
                                         Nothing -> addTy (x, ty) >> return ()
@@ -158,7 +158,7 @@ handleDecl d = do
           InteractiveCEK -> do
               d' <- typecheckDecl d
               (case d' of
-                (Decl p x ty tt) -> do tt' <- evalCEK tt'
+                (Decl p x ty tt) -> do tt' <- evalCEK tt
                                        addDecl (Decl p x ty tt')
                 (TDecl p x ty) -> do ty' <- lookupDeclTy x
                                      case ty' of
@@ -166,8 +166,7 @@ handleDecl d = do
                                         Just _ -> failPosFD4 p $ "Sinónimo de tipo ya declarado: "++x )
       where
         typecheckDecl :: MonadFD4 m => SDecl STerm -> m (Decl TTerm)
-        typecheckDecl (Decl p x t) = do d' <- elabDecl
-                                        return (tcDecl d')
+        typecheckDecl a = elabDecl a >>= \ a' -> tcDecl a'
 
 
 data Command = Compile CompileForm
@@ -254,18 +253,20 @@ compilePhrase x = do
 
 handleTerm ::  MonadFD4 m => STerm -> m ()
 handleTerm t = do
-         let t' = elab t
+        --  let t' = elab t
+         t' <- elab t
          s <- get
          tt <- tc t' (tyEnv s)
          te <- eval tt
          ppte <- pp te
-         printFD4 (ppte ++ " : " ++ ppTy (getTy tt))
+         printFD4 (ppte ++ " : " ++ ppTy (ty2sty (getTy tt)))
 
 printPhrase   :: MonadFD4 m => String -> m ()
 printPhrase x =
   do
     x' <- parseIO "<interactive>" tm x
-    let ex = elab x'
+    -- let ex = elab x'
+    ex <- elab x'
     tyenv <- gets tyEnv
     tex <- tc ex tyenv
     t  <- case x' of
@@ -279,8 +280,9 @@ printPhrase x =
 typeCheckPhrase :: MonadFD4 m => String -> m ()
 typeCheckPhrase x = do
          t <- parseIO "<interactive>" tm x
-         let t' = elab t
+        --  let t' = elab t
+         t' <- elab t
          s <- get
          tt <- tc t' (tyEnv s)
          let ty = getTy tt
-         printFD4 (ppTy ty)
+         printFD4 (ppTy (ty2sty ty))
