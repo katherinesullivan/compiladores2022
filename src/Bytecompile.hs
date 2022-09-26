@@ -11,6 +11,7 @@ Stability   : experimental
 Este módulo permite compilar módulos a la Macchina. También provee
 una implementación de la Macchina para ejecutar el bytecode.
 -}
+
 module Bytecompile
   (Bytecode, runBC, bcWrite, bcRead, bytecompileModule, showBC)
  where
@@ -73,6 +74,7 @@ pattern DROP     = 12
 pattern PRINT    = 13
 pattern PRINTN   = 14
 pattern JUMP     = 15
+pattern IFZ      = 16
 
 --función util para debugging: muestra el Bytecode de forma más legible.
 showOps :: Bytecode -> [String]
@@ -94,13 +96,33 @@ showOps (PRINT:xs)       = let (msg,_:rest) = span (/=NULL) xs
                            in ("PRINT " ++ show (bc2string msg)) : showOps xs
 showOps (PRINTN:xs)      = "PRINTN" : showOps xs
 showOps (ADD:xs)         = "ADD" : showOps xs
+showOps (IFZ:xs)         = "IFZ" : showOps xs
 showOps (x:xs)           = show x : showOps xs
 
 showBC :: Bytecode -> String
 showBC = intercalate "; " . showOps
 
-bcc :: MonadFD4 m => TTerm -> m Bytecode
-bcc t = failFD4 "implementame!"
+-- Compila un término a bytecode
+bc :: MonadFD4 m => TTerm -> m Bytecode
+bc tt = return $ bcc tt
+
+bcc :: TTerm -> Bytecode
+bcc (V _ (Bound i)) = ACCESS:i:[] -- funciona??
+-- bcc (V _ (Free n)) = failFD4 "???"
+-- bcc (V _ (Global n)) = failFD4 "???"
+bcc (Const _ (CNat n)) = CONST:n:[] -- funciona??
+bcc (Lam _ _ _ (Sc1 t)) = let bct = bcc t
+                          in FUNCTION:(length bct) + 1:[] ++ bct ++ RETURN:[]
+bcc (App _ t1 t2) = bcc t1 ++ bcc t2 ++ CALL:[]
+bcc (Print _ s t) | s == "" = bcc t ++ PRINTN:[]
+                  | otherwise = PRINT:[] ++ string2bc s ++ NULL:[] ++ bcc t ++ PRINTN:[]
+bcc (BinaryOp _ Add x y) = bcc x ++ bcc y ++ ADD:[]
+bcc (BinaryOp _ Sub x y) = bcc x ++ bcc y ++ SUB:[]
+bcc (Fix _ _ _ _ _ (Sc2 t)) = let bct = bcc t
+                              in FUNCTION:(length bct) + 1:[] ++ bct ++ RETURN:FIX:[]
+bcc (IfZ _ b t f) = bcc b ++ bcc t ++ bcc f ++ IFZ:[] -- revisar
+bcc (Let _ _ _ t' (Sc1 t)) = bcc t' ++ SHIFT:[] ++ bcc t ++ DROP:[]
+
 
 -- ord/chr devuelven los codepoints unicode, o en otras palabras
 -- la codificación UTF-32 del caracter.

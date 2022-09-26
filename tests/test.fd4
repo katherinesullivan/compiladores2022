@@ -10,7 +10,7 @@ let suma_x (x:Nat) : Nat -> Nat =
   let g (y:Nat) : Nat = x + y in
   g
 
-type FNat = Nat -> Nat
+type FNat = Nat -> Nat # FNat no se imprime como un identificador en el interprete, esta bien??
 
 # Y esto?
 let fsuma_x (x:Nat) : FNat =
