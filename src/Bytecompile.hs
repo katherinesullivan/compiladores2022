@@ -30,6 +30,9 @@ import Data.Char
 
 type Opcode = Int
 type Bytecode = [Int]
+type Environment = [Int]
+data Val = I Int | Fun Env Bytecode | RA Env Bytecode deriving Show
+type Stack = [Val]
 
 newtype Bytecode32 = BC { un32 :: [Word32] }
 
@@ -107,21 +110,27 @@ bc :: MonadFD4 m => TTerm -> m Bytecode
 bc tt = return $ bcc tt
 
 bcc :: TTerm -> Bytecode
-bcc (V _ (Bound i)) = ACCESS:i:[] -- funciona??
+bcc (V _ (Bound i)) = [ACCESS, i] -- funciona?? en principio deberia, tenemos que saltar 
+                                  -- dos cuando encontramos un ACCESS y si encontrasemos el numero 3
+                                  -- solito seria que esta mal generado el bytecode igual podemos preg 
 -- bcc (V _ (Free n)) = failFD4 "???"
 -- bcc (V _ (Global n)) = failFD4 "???"
-bcc (Const _ (CNat n)) = CONST:n:[] -- funciona??
+bcc (Const _ (CNat n)) = [CONST, n] -- funciona?? same as ACCESS
 bcc (Lam _ _ _ (Sc1 t)) = let bct = bcc t
-                          in FUNCTION:(length bct) + 1:[] ++ bct ++ RETURN:[]
-bcc (App _ t1 t2) = bcc t1 ++ bcc t2 ++ CALL:[]
-bcc (Print _ s t) | s == "" = bcc t ++ PRINTN:[]
-                  | otherwise = PRINT:[] ++ string2bc s ++ NULL:[] ++ bcc t ++ PRINTN:[]
-bcc (BinaryOp _ Add x y) = bcc x ++ bcc y ++ ADD:[]
-bcc (BinaryOp _ Sub x y) = bcc x ++ bcc y ++ SUB:[]
+                          in [FUNCTION, length bct + 1] ++ bct ++ [RETURN] -- es lo mismo
+                          -- mientras lo tengamos en cuenta pero segun el apunte guardariamos
+                          -- sin el +1 la longitud
+bcc (App _ t1 t2) = bcc t1 ++ bcc t2 ++ [CALL]
+bcc (Print _ s t) | s == "" = bcc t ++ [PRINTN]
+                  | otherwise = [PRINT] ++ string2bc s ++ [NULL] ++ bcc t ++ [PRINTN]
+bcc (BinaryOp _ Add x y) = bcc x ++ bcc y ++ [ADD]
+bcc (BinaryOp _ Sub x y) = bcc x ++ bcc y ++ [SUB]
 bcc (Fix _ _ _ _ _ (Sc2 t)) = let bct = bcc t
-                              in FUNCTION:(length bct) + 1:[] ++ bct ++ RETURN:FIX:[]
-bcc (IfZ _ b t f) = bcc b ++ bcc t ++ bcc f ++ IFZ:[] -- revisar
-bcc (Let _ _ _ t' (Sc1 t)) = bcc t' ++ SHIFT:[] ++ bcc t ++ DROP:[]
+                              in [FUNCTION, length bct + 1] ++ bct ++ [RETURN, FIX]
+bcc (IfZ _ b t f) = bcc b ++ bcc t ++ bcc f ++ [IFZ] -- revisar 
+                  -- might guess using JUMP -> IFZ; bcc b; JUMP; largo bcc t; bcc t: bcc f
+bcc (Let _ _ _ t' (Sc1 t)) = bcc t' ++ [SHIFT] ++ bcc t ++ [DROP]
+bcc _ = error "Malformed TTerm"
 
 
 -- ord/chr devuelven los codepoints unicode, o en otras palabras
@@ -148,4 +157,26 @@ bcRead :: FilePath -> IO Bytecode
 bcRead filename = (map fromIntegral <$> un32) . decode <$> BS.readFile filename
 
 runBC :: MonadFD4 m => Bytecode -> m ()
-runBC bc = failFD4 "implementame!"
+runBC bc = runBCWithArgs bc [] []
+
+runBCWithArgs :: MonadFD4 m => Bytecode -> Environment -> Stack -> m ()
+runBCWithArgs (ACCESS:i:bcs) e s = let n = e!!i
+                                       s' = I n:s
+                                   in runBCWithArgs bcs e s'
+runBCWithArgs (CONST:n:bcs) e s = let s' = I n:s 
+                                  in runBCWithArgs bcs e s' 
+runBCWithArgs (ADD:bcs) e (I n:I m:s) = let s' = (I m+n):s
+                                    in runBCWithArgs bcs e s' 
+runBCWithArgs (SUB:bcs) e (I n:I m:s) = let resta = m-n 
+                                            r = if resta <= 0 then 0 else resta
+                                            s' = I r:s
+                                    in runBCWithArgs bcs e s'
+runBCWithArgs (CALL:bcs) e (v:Fun ef cf:s) = let e' = v:ef 
+                                                 s' = RA e bcs 
+                                             in runBCWithArgs cf e' s' 
+runBCWithArgs (FUNCTION:I len:bcs) e s = let cf = take len bcs 
+                                             c = drop len bcs
+                                             s' = Fun e cf:s 
+                                         in runBCWithArgs c e s'
+-- FALTA RETURN PRINTS Y IFZ
+runBCWithArgs _ _ _ = failFD4 "Malformed ByteCode"
