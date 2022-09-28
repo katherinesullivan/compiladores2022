@@ -31,7 +31,7 @@ import Data.Char
 type Opcode = Int
 type Bytecode = [Int]
 type Environment = [Int]
-data Val = I Int | Fun Env Bytecode | RA Env Bytecode deriving Show
+data Val = I Int | Fun Environment Bytecode | RA Environment Bytecode deriving Show
 type Stack = [Val]
 
 newtype Bytecode32 = BC { un32 :: [Word32] }
@@ -119,7 +119,7 @@ bcc (Const _ (CNat n)) = [CONST, n] -- funciona?? same as ACCESS
 bcc (Lam _ _ _ (Sc1 t)) = let bct = bcc t
                           in [FUNCTION, length bct + 1] ++ bct ++ [RETURN] -- es lo mismo
                           -- mientras lo tengamos en cuenta pero segun el apunte guardariamos
-                          -- sin el +1 la longitud
+                          -- sin el +1 la longitud sino ver NULL
 bcc (App _ t1 t2) = bcc t1 ++ bcc t2 ++ [CALL]
 bcc (Print _ s t) | s == "" = bcc t ++ [PRINTN]
                   | otherwise = [PRINT] ++ string2bc s ++ [NULL] ++ bcc t ++ [PRINTN]
@@ -127,8 +127,8 @@ bcc (BinaryOp _ Add x y) = bcc x ++ bcc y ++ [ADD]
 bcc (BinaryOp _ Sub x y) = bcc x ++ bcc y ++ [SUB]
 bcc (Fix _ _ _ _ _ (Sc2 t)) = let bct = bcc t
                               in [FUNCTION, length bct + 1] ++ bct ++ [RETURN, FIX]
-bcc (IfZ _ b t f) = bcc b ++ bcc t ++ bcc f ++ [IFZ] -- revisar 
-                  -- might guess using JUMP -> IFZ; bcc b; JUMP; largo bcc t; bcc t: bcc f
+bcc (IfZ _ b t f) = bcc b ++ bcc t ++ bcc f ++ [IFZ] -- revisar !!!
+                  -- might guess using JUMP -> IFZ; bcc b; JUMP; largo bcc t; largo bcc f; bcc t; bcc f
 bcc (Let _ _ _ t' (Sc1 t)) = bcc t' ++ [SHIFT] ++ bcc t ++ [DROP]
 bcc _ = error "Malformed TTerm"
 
@@ -142,7 +142,26 @@ bc2string :: Bytecode -> String
 bc2string = map chr
 
 bytecompileModule :: MonadFD4 m => Module -> m Bytecode
-bytecompileModule m = failFD4 "implementame!"
+--bytecompileModule m = failFD4 "implementame!"
+bytecompileModule m = let tp = decl2nestedLet m 
+                      in return $ bcc tp ++ [STOP]
+
+-- Let info Name Ty (Tm info var) (Scope info var)
+{-
+ Decl
+  { declPos  :: Pos
+  , declName :: Name
+  , declType :: Ty
+  , declBody :: a
+  }
+-}
+-- type TTerm = Tm (Pos,Ty) Var
+ 
+decl2nestedLet :: Module -> TTerm 
+decl2nestedLet [] = error "empty module"
+decl2nestedLet [m1] = Let (declPos m1, declType m1) (declName m1) (declType m1) (declBody m1) (Sc1 (Tm (declPos m1, declName m1) (Free (declName m1))))
+decl2nestedLet (m1:m) = Let (declPos m1, declType m1) (declName m1) (declType m1) (declBody m1) (Sc1 (decl2nestedLet m))
+
 
 -- | Toma un bytecode, lo codifica y lo escribe un archivo
 bcWrite :: Bytecode -> FilePath -> IO ()
@@ -165,18 +184,35 @@ runBCWithArgs (ACCESS:i:bcs) e s = let n = e!!i
                                    in runBCWithArgs bcs e s'
 runBCWithArgs (CONST:n:bcs) e s = let s' = I n:s 
                                   in runBCWithArgs bcs e s' 
-runBCWithArgs (ADD:bcs) e (I n:I m:s) = let s' = (I m+n):s
-                                    in runBCWithArgs bcs e s' 
+runBCWithArgs (ADD:bcs) e (I n:I m:s) = let s' = I (m+n):s
+                                        in runBCWithArgs bcs e s' 
 runBCWithArgs (SUB:bcs) e (I n:I m:s) = let resta = m-n 
                                             r = if resta <= 0 then 0 else resta
                                             s' = I r:s
-                                    in runBCWithArgs bcs e s'
-runBCWithArgs (CALL:bcs) e (v:Fun ef cf:s) = let e' = v:ef 
-                                                 s' = RA e bcs 
-                                             in runBCWithArgs cf e' s' 
-runBCWithArgs (FUNCTION:I len:bcs) e s = let cf = take len bcs 
-                                             c = drop len bcs
-                                             s' = Fun e cf:s 
-                                         in runBCWithArgs c e s'
+                                        in runBCWithArgs bcs e s'
+runBCWithArgs (CALL:bcs) e (I v:Fun ef cf:s) = let e' = v:ef 
+                                                   s' = RA e bcs : s
+                                               in runBCWithArgs cf e' s' 
+runBCWithArgs (FUNCTION:len:bcs) e s = let cf = take len bcs 
+                                           c = drop len bcs
+                                           s' = Fun e cf:s 
+                                       in runBCWithArgs c e s'
 -- FALTA RETURN PRINTS Y IFZ
+runBCWithArgs (RETURN:_) _ (v:RA e c:s) = let s' = v:s 
+                                          in runBCWithArgs c e s'
+runBCWithArgs (PRINTN:bcs) e (I n:s) = do printFD4 (show n) 
+                                          runBCWithArgs bcs e s
+runBCWithArgs (PRINT:len:bcs) e s = let strInBC = take len bcs 
+                                        str = bc2string strInBC
+                                        c = drop len bcs 
+                                    in do printFD4 str
+                                          runBCWithArgs c e s
+runBCWithArgs (IFZ:bcs) e s = runBCWithArgs bcs e s
+runBCWithArgs (JUMP:lenT:lenF:bcs) e (I n:s) | n == 0 = let c' = take lenT bcs
+                                                            c'' = drop (lenT+lenF) bcs
+                                                            c = c'++c''
+                                                        in runBCWithArgs c e s
+                                             | otherwise = let c = drop lenT bcs
+                                                           in runBCWithArgs c e s 
+runBCWithArgs (STOP:_) _ _ = return ()
 runBCWithArgs _ _ _ = failFD4 "Malformed ByteCode"
