@@ -129,10 +129,11 @@ compileFile f = do
     case m of
       Bytecompile -> do setInter False
                         ds1 <- loadFile f
-                        ds2 <- mapM elabDecl ds1 -- faltaria filtrar las declaraciones de tipo
+                        ds2 <- mapM elabDecl ds1
                         ds3 <- mapM tcDecl ds2
-                        ds4 <- bytecompileModule ds3
-                        liftIO $ bcWrite ds4 "new_file.bc"
+                        ds4 <- filterM filterTypeDecl ds3
+                        ds5 <- bytecompileModule ds4
+                        liftIO $ bcWrite ds5 "new_file.bc"
       RunVM -> do b <- liftIO $ bcRead f
                   runBC b
       _ -> do i <- getInter
@@ -141,6 +142,8 @@ compileFile f = do
               decls <- loadFile f
               mapM_ handleDecl decls
               setInter i
+    where filterTypeDecl Decl{} = return True
+          filterTypeDecl TDecl{} = return False
 
 parseIO ::  MonadFD4 m => String -> P a -> String -> m a
 parseIO filename p x = case runP p x filename of
@@ -154,8 +157,8 @@ handleDecl d = do
           Interactive -> do
               d' <- typecheckDecl d
               (case d' of
-                (Decl p x ty tt) -> do te <- eval tt
-                                       addDecl (Decl p x ty te)
+                (Decl p x ty tt) -> do eval tt
+                                       return ()
                 (TDecl p x ty) -> do ty' <- lookupDeclTy x
                                      case ty' of
                                         Nothing -> addTy (x, ty) >> return ()
@@ -165,8 +168,7 @@ handleDecl d = do
               printFD4 ("Chequeando tipos de "++f)
               td <- typecheckDecl d
               (case td of
-                decl@(Decl p x ty tt) -> do addDecl decl
-                                            -- opt <- getOpt
+                decl@(Decl p x ty tt) -> do -- opt <- getOpt
                                             -- td' <- if opt then optimize td else td
                                             ppterm <- ppDecl decl  --td'
                                             printFD4 ppterm
@@ -177,8 +179,8 @@ handleDecl d = do
           InteractiveCEK -> do
               d' <- typecheckDecl d
               (case d' of
-                (Decl p x ty tt) -> do tt' <- evalCEK tt
-                                       addDecl (Decl p x ty tt')
+                (Decl p x ty tt) -> do evalCEK tt
+                                       return ()
                 (TDecl p x ty) -> do ty' <- lookupDeclTy x
                                      case ty' of
                                         Nothing -> addTy (x, ty) >> return ()

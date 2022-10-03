@@ -107,12 +107,14 @@ showBC = intercalate "; " . showOps
 
 -- Compila un término a bytecode
 bc :: MonadFD4 m => TTerm -> m Bytecode
-bc tt = return $ bcc tt
+bc tt = do let t = bcc tt
+           printFD4(showBC t)
+           return t
 
 bcc :: TTerm -> Bytecode
 bcc (V _ (Bound i)) = [ACCESS, i]
-bcc (V _ (Free n)) = error "Malformed TTerm"
--- bcc (V _ (Global n)) = failFD4 "???" -- no deberia fallar, hay que armar algo
+bcc (V _ (Free n)) = error "No deberia haber una variable free"
+bcc (V _ (Global n)) = error "No deberia haber una variable global"
 bcc (Const _ (CNat n)) = [CONST, n]
 bcc (Lam _ _ _ (Sc1 t)) = let bct = bcc t
                           in [FUNCTION, length bct + 1] ++ bct ++ [RETURN]
@@ -127,7 +129,7 @@ bcc (IfZ _ b t f) = let tbc = bcc t
                         fbc = bcc f
                     in bcc b ++ [IFZ, length tbc + 2] ++ tbc ++ [JUMP, length fbc] ++ fbc
 bcc (Let _ _ _ t' (Sc1 t)) = bcc t' ++ [SHIFT] ++ bcc t ++ [DROP]
-bcc _ = error "Malformed TTerm"
+
 
 
 -- ord/chr devuelven los codepoints unicode, o en otras palabras
@@ -139,15 +141,29 @@ bc2string :: Bytecode -> String
 bc2string = map chr
 
 bytecompileModule :: MonadFD4 m => Module -> m Bytecode
---bytecompileModule m = failFD4 "implementame!"
-bytecompileModule m = let tp = decl2nestedLet m 
-                      in return $ bcc tp ++ [STOP] -- no deberia usar bc
+bytecompileModule m = let m1 = global2free m
+                          m2 = decl2nestedLet m1
+                      in do let m3 = bc m2
+                            return (m3 ++ [STOP])
 
- 
+global2free :: Module -> Module
+global2free = map (\ (Decl i n ty term) -> Decl i n ty (rename term))
+                where rename (V i (Global n)) =  V i (Free n)
+                      rename t@(V _ _) = t
+                      rename t@(Const _ _) = t
+                      rename (Lam i n ty (Sc1 t)) = Lam i n ty (Sc1 (rename t))
+                      rename (App i t1 t2) = App i (rename t1) (rename t2)
+                      rename (Print i s t) = Print i s (rename t)
+                      rename (BinaryOp i b t1 t2) = BinaryOp i b (rename t1) (rename t2)
+                      rename (Fix i x xty f fty (Sc2 t)) = Fix i x xty f fty (Sc2 (rename t))
+                      rename (IfZ i t1 t2 t3) = IfZ i (rename t1) (rename t2) (rename t3)
+                      rename (Let i x xty t1 (Sc1 t2)) = Let i x xty (rename t1) (Sc1 (rename t2))
+
+
 decl2nestedLet :: Module -> TTerm 
 decl2nestedLet [] = error "empty module"
-decl2nestedLet [m1] = Let (declPos m1, declType m1) (declName m1) (declType m1) (declBody m1) (Sc1 (V (declPos m1, declType m1) (Free (declName m1))))
-decl2nestedLet (m1:m) = Let (declPos m1, declType m1) (declName m1) (declType m1) (declBody m1) (Sc1 (decl2nestedLet m))
+decl2nestedLet [m1] = declBody m1
+decl2nestedLet (m1:m) = Let (declPos m1, declType m1) (declName m1) (declType m1) (declBody m1) (close (declName m1) (decl2nestedLet m))
 
 
 -- | Toma un bytecode, lo codifica y lo escribe un archivo
@@ -186,13 +202,13 @@ runBCWithArgs (FUNCTION:len:bcs) e s = let cf = take len bcs  -- chequear que ta
                                        in runBCWithArgs c e s'
 runBCWithArgs (RETURN:_) _ (v:RA e c:s) = let s' = v:s 
                                           in runBCWithArgs c e s'
-runBCWithArgs (PRINTN:bcs) e (I n:s) = do printFD4 (show n) 
-                                          runBCWithArgs bcs e s
-runBCWithArgs (PRINT:bcs) e s = let strInBC = takeWhile (/= NULL) bcs
-                                    str = bc2string strInBC
-                                    c = dropWhile (/= NULL) bcs 
-                                in do printFD4 str
-                                      runBCWithArgs c e s
+runBCWithArgs (PRINT:bcs) e (I n:s) = do printFD4 (show n) 
+                                         runBCWithArgs bcs e s
+runBCWithArgs (PRINTN:bcs) e s = let strInBC = takeWhile (/= NULL) bcs
+                                     str = bc2string strInBC
+                                     c = dropWhile (/= NULL) bcs 
+                                 in do printFD4 str
+                                       runBCWithArgs c e s
 runBCWithArgs (NULL:bcs) e s = runBCWithArgs bcs e s
 runBCWithArgs (IFZ:len:bcs) e (I n:s) = if n == 0 then runBCWithArgs bcs e s else runBCWithArgs (drop len bcs) e s
 runBCWithArgs (JUMP:len:bcs) e s  = runBCWithArgs (drop len bcs) e s
