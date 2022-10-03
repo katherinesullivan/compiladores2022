@@ -143,16 +143,6 @@ bytecompileModule :: MonadFD4 m => Module -> m Bytecode
 bytecompileModule m = let tp = decl2nestedLet m 
                       in return $ bcc tp ++ [STOP] -- no deberia usar bc
 
--- Let info Name Ty (Tm info var) (Scope info var)
-{-
- Decl
-  { declPos  :: Pos
-  , declName :: Name
-  , declType :: Ty
-  , declBody :: a
-  }
--}
--- type TTerm = Tm (Pos,Ty) Var
  
 decl2nestedLet :: Module -> TTerm 
 decl2nestedLet [] = error "empty module"
@@ -204,13 +194,8 @@ runBCWithArgs (PRINT:bcs) e s = let strInBC = takeWhile (/= NULL) bcs
                                 in do printFD4 str
                                       runBCWithArgs c e s
 runBCWithArgs (NULL:bcs) e s = runBCWithArgs bcs e s
-runBCWithArgs (IFZ:bcs) e s = runBCWithArgs bcs e s
-runBCWithArgs (JUMP:lenT:lenF:bcs) e (I n:s) | n == 0 = let c' = take lenT bcs
-                                                            c'' = drop (lenT+lenF) bcs
-                                                            c = c'++c''
-                                                        in runBCWithArgs c e s
-                                             | otherwise = let c = drop lenT bcs
-                                                           in runBCWithArgs c e s 
+runBCWithArgs (IFZ:len:bcs) e (I n:s) = if n == 0 then runBCWithArgs bcs e s else runBCWithArgs (drop len bcs) e s
+runBCWithArgs (JUMP:len:bcs) e s  = runBCWithArgs (drop len bcs) e s
 runBCWithArgs (STOP:_) _ _ = return ()
 runBCWithArgs (SHIFT:bcs) e (v:s) = runBCWithArgs bcs (v:e) s
 runBCWithArgs (DROP:bcs) (v:e) s = runBCWithArgs bcs e s

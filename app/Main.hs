@@ -36,6 +36,7 @@ import CEK ( evalCEK )
 import PPrint ( pp , ppTy, ppDecl, ty2sty )
 import MonadFD4
 import TypeChecker ( tc, tcDecl )
+import Bytecompile
 
 prompt :: String
 prompt = "FD4> "
@@ -74,7 +75,15 @@ main = execParser opts >>= go
     go :: (Mode,Bool,[FilePath]) -> IO ()
     go (Interactive,opt,files) =
               runOrFail (Conf opt Interactive) (runInputT defaultSettings (repl files))
-    go (m,opt, files) =
+    go (Typecheck,opt,files) =
+              runOrFail (Conf opt Typecheck) (runInputT defaultSettings (repl files))
+    go (InteractiveCEK,opt,files) =
+              runOrFail (Conf opt InteractiveCEK) (runInputT defaultSettings (repl files))
+    go (Bytecompile,opt,files) =
+              runOrFail (Conf opt Bytecompile) $ mapM_ compileFile files
+    go (RunVM,opt,files) =
+              runOrFail (Conf opt RunVM) $ mapM_ compileFile files
+    go (m,opt,files) =
               runOrFail (Conf opt m) $ mapM_ compileFile files
 
 runOrFail :: Conf -> FD4 a -> IO a
@@ -116,12 +125,22 @@ loadFile f = do
 
 compileFile ::  MonadFD4 m => FilePath -> m ()
 compileFile f = do
-    i <- getInter
-    setInter False
-    printFD4 ("Abriendo "++f++"...")
-    decls <- loadFile f
-    mapM_ handleDecl decls
-    setInter i
+    m <- getMode
+    case m of
+      Bytecompile -> do setInter False
+                        ds1 <- loadFile f
+                        ds2 <- mapM elabDecl ds1 -- faltaria filtrar las declaraciones de tipo
+                        ds3 <- mapM tcDecl ds2
+                        ds4 <- bytecompileModule ds3
+                        liftIO $ bcWrite ds4 "new_file.bc"
+      RunVM -> do b <- liftIO $ bcRead f
+                  runBC b
+      _ -> do i <- getInter
+              setInter False
+              printFD4 ("Abriendo "++f++"...")
+              decls <- loadFile f
+              mapM_ handleDecl decls
+              setInter i
 
 parseIO ::  MonadFD4 m => String -> P a -> String -> m a
 parseIO filename p x = case runP p x filename of
