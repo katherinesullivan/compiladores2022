@@ -195,7 +195,14 @@ void run(code init_c)
 		switch(*c++) {
 		case ACCESS: {
 			/* implementame */
-			abort();
+			uint32_t i = (*--s).i;
+			env current = e;
+			for (int j = 0; j < i; j++) {
+				current = current->next;
+			}
+			value val = current->v;
+			(*s++) = val;
+			break;
 		}
 
 		case CONST: {
@@ -326,12 +333,41 @@ void run(code init_c)
 
 		case SHIFT: {
 			/* implementame */
-			abort();
+			// saco de la pila, agrego al entorno
+			value val = (*--s);
+			e = env_push(e, val);
+			break;
 		}
 
 		case DROP: {
 			/* implementame */
-			abort();
+			// saca del entorno
+			e = e->next;
+			break;
+		}
+
+		case JUMP: {
+			// agregado
+			// separar len
+			uint32_t len = *c++;
+			// salto
+			for (int j; j < len; j++) {
+				*c++;
+			}
+			break;
+		}
+
+		case CJUMP: {
+			// agregado
+			// separar len
+			uint32_t len = *c++;
+			// si no tengo un cero, salto
+			if ((*s).i) {
+				for (int j; j < len; j++) {
+					*c++;
+				}
+			}
+			break;
 		}
 
 		case PRINTN: {
