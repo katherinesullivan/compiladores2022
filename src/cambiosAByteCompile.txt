@@ -1,0 +1,10 @@
+bcc (Fix _ _ _ _ _ (Sc2 t)) = let bct = bccT t
+                              in [FUNCTION, length bct + 1] ++ bct ++ [RETURN, FIX]
+
+bccT :: TTerm -> Bytecode
+bccT (App _ t1 t2) = bcc t1 ++ bcc t2 ++ [TAILCALL]
+bccT (Let _ _ _ t' (Sc1 t)) = bcc t' ++ [SHIFT] ++ bccT t
+bccT t = bcc t ++ [RETURN]
+
+runBCWithArgs (TAILCALL:bcs) _ (v:Fun env cf:s) = let new_env = v : env
+                                                  in runBCWithArgs cf new_env s
