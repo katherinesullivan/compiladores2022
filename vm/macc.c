@@ -276,7 +276,20 @@ void run(code init_c)
 
 		case TAILCALL: {
 			/* implementame */
-			abort();
+			// Sacamos el valor que haya en el stack y la clausura
+			// correspondiente
+			value val = *--s;
+			struct clo claus = (*--s).clo;
+			// separamos entorno y valor de la clausura
+			env claus_env = claus.clo_env;
+			code claus_body = claus.clo_body;
+
+			// vamos a ir al codigo de la clausura
+			c = claus_body;
+			// y ponernos en el nuevo entorno correspondiente
+			e = env_push(claus_env, val);
+			
+			break;
 		}
 
 		case FUNCTION: {
