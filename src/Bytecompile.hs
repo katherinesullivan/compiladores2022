@@ -78,7 +78,8 @@ pattern DROP     = 12
 pattern PRINT    = 13
 pattern PRINTN   = 14
 pattern JUMP     = 15
-pattern IFZ      = 16
+pattern CJUMP      = 16
+pattern TAILCALL = 17
 
 --función util para debugging: muestra el Bytecode de forma más legible.
 showOps :: Bytecode -> [String]
@@ -99,7 +100,7 @@ showOps (DROP:xs)        = "DROP" : showOps xs
 showOps (PRINT:xs)       = let (msg,_:rest) = span (/=NULL) xs
                            in ("PRINT " ++ show (bc2string msg)) : showOps rest
 showOps (PRINTN:xs)      = "PRINTN" : showOps xs
-showOps (IFZ:xs)         = "IFZ" : showOps xs
+showOps (CJUMP:xs)       = "CJUMP" : showOps xs
 showOps (x:xs)           = show x : showOps xs
 
 showBC :: Bytecode -> String
@@ -123,13 +124,17 @@ bcc (Print _ s t) | s == "" = bcc t ++ [PRINTN]
                   | otherwise = [PRINT] ++ string2bc s ++ [NULL] ++ bcc t ++ [PRINTN]
 bcc (BinaryOp _ Add x y) = bcc x ++ bcc y ++ [ADD]
 bcc (BinaryOp _ Sub x y) = bcc x ++ bcc y ++ [SUB]
-bcc (Fix _ _ _ _ _ (Sc2 t)) = let bct = bcc t
+bcc (Fix _ _ _ _ _ (Sc2 t)) = let bct = bccT t
                               in [FUNCTION, length bct + 1] ++ bct ++ [RETURN, FIX]
 bcc (IfZ _ b t f) = let tbc = bcc t
                         fbc = bcc f
-                    in bcc b ++ [IFZ, length tbc + 2] ++ tbc ++ [JUMP, length fbc] ++ fbc
+                    in bcc b ++ [CJUMP, length tbc + 2] ++ tbc ++ [JUMP, length fbc] ++ fbc
 bcc (Let _ _ _ t' (Sc1 t)) = bcc t' ++ [SHIFT] ++ bcc t ++ [DROP]
 
+bccT :: TTerm -> Bytecode
+bccT (App _ t1 t2) = bcc t1 ++ bcc t2 ++ [TAILCALL]
+bccT (Let _ _ _ t' (Sc1 t)) = bcc t' ++ [SHIFT] ++ bccT t
+bccT t = bcc t ++ [RETURN]
 
 
 -- ord/chr devuelven los codepoints unicode, o en otras palabras
@@ -143,8 +148,8 @@ bc2string = map chr
 bytecompileModule :: MonadFD4 m => Module -> m Bytecode
 bytecompileModule m = let m1 = global2free m
                           m2 = decl2nestedLet m1
-                      in do let m3 = bc m2
-                            return (m3 ++ [STOP])
+                          m3 = bcc m2
+                      in return (m3 ++ [STOP])
 
 global2free :: Module -> Module
 global2free = map (\ (Decl i n ty term) -> Decl i n ty (rename term))
@@ -202,15 +207,15 @@ runBCWithArgs (FUNCTION:len:bcs) e s = let cf = take len bcs  -- chequear que ta
                                        in runBCWithArgs c e s'
 runBCWithArgs (RETURN:_) _ (v:RA e c:s) = let s' = v:s 
                                           in runBCWithArgs c e s'
-runBCWithArgs (PRINT:bcs) e (I n:s) = do printFD4 (show n) 
-                                         runBCWithArgs bcs e s
-runBCWithArgs (PRINTN:bcs) e s = let strInBC = takeWhile (/= NULL) bcs
-                                     str = bc2string strInBC
-                                     c = dropWhile (/= NULL) bcs 
-                                 in do printFD4 str
-                                       runBCWithArgs c e s
+runBCWithArgs (PRINTN:bcs) e s@(I n:_) = do printFD4 (show n) 
+                                            runBCWithArgs bcs e s
+runBCWithArgs (PRINT:bcs) e s = let strInBC = takeWhile (/= NULL) bcs
+                                    str = bc2string strInBC
+                                    c = dropWhile (/= NULL) bcs 
+                                in do printFD4NoNL str
+                                      runBCWithArgs c e s
 runBCWithArgs (NULL:bcs) e s = runBCWithArgs bcs e s
-runBCWithArgs (IFZ:len:bcs) e (I n:s) = if n == 0 then runBCWithArgs bcs e s else runBCWithArgs (drop len bcs) e s
+runBCWithArgs (CJUMP:len:bcs) e (I n:s) = if n == 0 then runBCWithArgs bcs e s else runBCWithArgs (drop len bcs) e s
 runBCWithArgs (JUMP:len:bcs) e s  = runBCWithArgs (drop len bcs) e s
 runBCWithArgs (STOP:_) _ _ = return ()
 runBCWithArgs (SHIFT:bcs) e (v:s) = runBCWithArgs bcs (v:e) s
