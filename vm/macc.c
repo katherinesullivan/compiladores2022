@@ -19,9 +19,10 @@
 STATIC_ASSERT(sizeof (int) >= sizeof (uint32_t));
 
 /* Habilitar impresión de traza? */
-#define TRACE 0
+#define TRACE 1
 
 enum {
+	CNULL    = 0,
 	RETURN   = 1,
 	CONST    = 2,
 	ACCESS   = 3,
@@ -29,15 +30,15 @@ enum {
 	CALL     = 5,
 	ADD      = 6,
 	SUB      = 7,
-	JUMP     = 8,
 	FIX      = 9,
 	STOP     = 10,
 	SHIFT    = 11,
 	DROP     = 12,
 	PRINT    = 13,
 	PRINTN   = 14,
-	CJUMP    = 15,
-	TAILCALL = 16,
+	JUMP     = 15,
+	CJUMP    = 16,
+	TAILCALL = 17,
 };
 
 #define quit(...)							\
@@ -195,12 +196,15 @@ void run(code init_c)
 		switch(*c++) {
 		case ACCESS: {
 			/* implementame */
-			uint32_t i = (*--s).i;
+			printf("env e");
+			uint32_t i = *c++;
+			printf("env e: %p", e);
 			env current = e;
 			for (int j = 0; j < i; j++) {
 				current = current->next;
 			}
 			value val = current->v;
+			printf("env e: %p", e);
 			(*s++) = val;
 			break;
 		}
@@ -278,6 +282,7 @@ void run(code init_c)
 			/* implementame */
 			// Sacamos el valor que haya en el stack y la clausura
 			// correspondiente
+			printf("tc");
 			value val = *--s;
 			struct clo claus = (*--s).clo;
 			// separamos entorno y valor de la clausura
@@ -345,6 +350,7 @@ void run(code init_c)
 		}
 
 		case SHIFT: {
+			fprintf(stderr, "shift\n");
 			/* implementame */
 			// saco de la pila, agrego al entorno
 			value val = (*--s);
@@ -364,9 +370,7 @@ void run(code init_c)
 			// separar len
 			uint32_t len = *c++;
 			// salto
-			for (int j; j < len; j++) {
-				*c++;
-			}
+			c += len;
 			break;
 		}
 
@@ -375,11 +379,8 @@ void run(code init_c)
 			// separar len
 			uint32_t len = *c++;
 			// si no tengo un cero, salto
-			if ((*s).i) {
-				for (int j; j < len; j++) {
-					*c++;
-				}
-			}
+			if (!((*s).i))
+				c += len;
 			break;
 		}
 
@@ -391,9 +392,13 @@ void run(code init_c)
 
 		case PRINT: {
 			wchar_t wc;
-			while ((wc = *c++))
+			while (wc = *c++)
 				putwchar(wc);
 
+			break;
+		}
+
+		case CNULL: {
 			break;
 		}
 

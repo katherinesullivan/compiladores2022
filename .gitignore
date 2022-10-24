@@ -15,6 +15,7 @@ compiladores.cabal
 *.fd4.out
 *.fd4.err
 */test/*/*.c
+new_file.bc
 
 .vscode
 .HTF

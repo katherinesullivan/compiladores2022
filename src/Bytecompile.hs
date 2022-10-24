@@ -78,7 +78,7 @@ pattern DROP     = 12
 pattern PRINT    = 13
 pattern PRINTN   = 14
 pattern JUMP     = 15
-pattern CJUMP      = 16
+pattern CJUMP    = 16
 pattern TAILCALL = 17
 
 --función util para debugging: muestra el Bytecode de forma más legible.
@@ -148,8 +148,8 @@ bc2string = map chr
 bytecompileModule :: MonadFD4 m => Module -> m Bytecode
 bytecompileModule m = let m1 = global2free m
                           m2 = decl2nestedLet m1
-                          m3 = bcc m2
-                      in return (m3 ++ [STOP])
+                      in do m3 <- bc m2
+                            return (m3 ++ [STOP])
 
 global2free :: Module -> Module
 global2free = map (\ (Decl i n ty term) -> Decl i n ty (rename term))

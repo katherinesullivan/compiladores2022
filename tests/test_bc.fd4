@@ -1,3 +1,2 @@
-let x : Nat = print "x = " 1
+let x : Nat = print "x = " 2
 let y : Nat = print "y = " (x + x)
-let z : Nat = print "z = " (x + y)
