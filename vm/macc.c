@@ -398,10 +398,6 @@ void run(code init_c)
 			break;
 		}
 
-		case CNULL: {
-			break;
-		}
-
 		default:
 			quit("FATAL: opcode no reconocido: %d", *(c-1));
 		}
