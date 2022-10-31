@@ -203,9 +203,10 @@ decl = do
      reserved "let"
      isrec <- (try (reserved "rec" >> return True)) <|> return False
      v <- var
-     binds <- binders
-     reservedOp ":"
-     ty <- typeP
+     binds <- try binders <|> return []
+     ty <- try (do reservedOp ":"
+                   typeP)
+           <|> return SNoTy
      reservedOp "="
      t <- expr
      return (SDecl i isrec v ty binds t)

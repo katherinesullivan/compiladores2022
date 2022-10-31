@@ -153,9 +153,10 @@ parseIO filename p x = case runP p x filename of
                   Right r -> return r
 
 evalDecl :: MonadFD4 m => Decl TTerm -> m (Decl TTerm)
-evalDecl (Decl p x e) = do
+evalDecl (Decl p x t e) = do
     e' <- eval e
-    return (Decl p x e')
+    return (Decl p x t e')
+evalDecl dd = return dd
 
 handleDecl ::  MonadFD4 m => SDecl STerm -> m () 
 handleDecl d = do
@@ -195,9 +196,14 @@ handleDecl d = do
 
           Eval -> do
               td <- typecheckDecl d
+              (case td of
+                (Decl _ _ _ _) -> do ed <- evalDecl td
+                                     addDecl ed
+                (TDecl p x ty) -> do ty' <- lookupDeclTy x
+                                     case ty' of
+                                        Nothing -> addTy (x, ty) >> return ()
+                                        Just _ -> failPosFD4 p $ "Sinónimo de tipo ya declarado: "++x )
               -- td' <- if opt then optimizeDecl td else return td
-              ed <- evalDecl td
-              addDecl ed
 
       where
         typecheckDecl :: MonadFD4 m => SDecl STerm -> m (Decl TTerm)

@@ -27,6 +27,7 @@ elabTypes (DeclSTy n) = do t <- lookupDeclTy n
                            case t of
                             Nothing -> failFD4 "Sinónimo de tipo no definido"
                             Just ty -> return ty 
+elabTypes SNoTy = return NoTy
 
 
 -- | 'elab' transforma variables ligadas en índices de de Bruijn

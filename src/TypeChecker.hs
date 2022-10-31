@@ -89,6 +89,7 @@ typeError t s = do
 expect :: MonadFD4 m => Ty    -- ^ tipo esperado
                      -> TTerm
                      -> m TTerm
+expect NoTy tt = return tt 
 expect ty tt = let ty' = getTy tt
                in if ty == ty' then return tt 
                                else typeError tt $ 

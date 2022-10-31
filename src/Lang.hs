@@ -42,12 +42,14 @@ data STy =
       NatSTy
     | FunSTy STy STy
     | DeclSTy Name
+    | SNoTy
     deriving (Show,Eq)
 
 -- | AST de Tipos
 data Ty =
       NatTy
     | FunTy Ty Ty
+    | NoTy
     deriving (Show,Eq)
 
 type Name = String
