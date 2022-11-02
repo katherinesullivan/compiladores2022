@@ -17,6 +17,7 @@ data GlEnv = GlEnv {
                         -- Es falso mientras se cargan archivos, pero luego puede ser verdadero.
   lfile :: String,      -- ^ Último archivo cargado.
   cantDecl :: Int,      -- ^ Cantidad de declaraciones desde la última carga
+  fresh :: Int,         -- ^ Contador de variables frescas
   glb :: [Decl TTerm],  -- ^ Entorno con declaraciones globales
   glbT :: [(Name, Ty)]  -- ^ Entorno con declaraciones globales de tipo
 }

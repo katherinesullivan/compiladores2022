@@ -99,6 +99,11 @@ addDecl d = modify (\s -> s { glb = d : glb s, cantDecl = cantDecl s + 1 })
 addTy :: MonadFD4 m => (Name, Ty) -> m ()
 addTy d = modify (\s -> s { glbT = d : glbT s }) -- se deberian contar los sinonimos de tipo ???
 
+getAndUpdateFresh :: MonadFD4 m => m Int
+getFresh = do fr <- gets fresh
+              modify (\s -> s { fresh = fr + 1 })
+              return fr
+
 eraseLastFileDecls :: MonadFD4 m => m ()
 eraseLastFileDecls = do
       s <- get
