@@ -36,7 +36,7 @@ data Mode =
   | Bytecompile
   | RunVM
   | Eval
-  -- | CC
+  | CC
   -- | Canon
   -- | Assembler
   -- | Build
@@ -47,4 +47,4 @@ data Conf = Conf {
 
 -- | Valor del estado inicial
 initialEnv :: GlEnv
-initialEnv = GlEnv False "" 0 [] []
+initialEnv = GlEnv False "" 0 0 [] []
