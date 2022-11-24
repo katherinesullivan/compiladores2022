@@ -37,6 +37,9 @@ import PPrint ( pp , ppTy, ppDecl, ty2sty )
 import MonadFD4
 import TypeChecker ( tc, tcDecl )
 import Bytecompile
+import ClosureConvert
+import C (ir2C)
+import IR
 
 prompt :: String
 prompt = "FD4> "
@@ -84,6 +87,8 @@ main = execParser opts >>= go
               runOrFail (Conf opt Bytecompile) $ mapM_ compileFile files
     go (RunVM,opt,files) =
               runOrFail (Conf opt RunVM) $ mapM_ compileFile files
+    go (CC,opt,files) =
+              runOrFail (Conf opt CC) $ mapM_ compileFile files
     go (m,opt,files) =
               runOrFail (Conf opt m) $ mapM_ compileFile files
 
@@ -138,6 +143,13 @@ compileFile f = do
                         liftIO $ bcWrite ds5 "new_file.bc"
       RunVM -> do b <- liftIO $ bcRead f
                   runBC b
+      CC -> do setInter False
+               ds1 <- loadFile f
+               ds2 <- mapM elabDecl ds1
+               ds3 <- mapM tcDecl ds2
+               ds4 <- filterM filterTypeDecl ds3
+               let ds5 = runCC ds4
+               printFD4 $ ir2C (IrDecls ds5)
       _ -> do i <- getInter
               setInter False
               when i $ printFD4 ("Abriendo "++f++"...")

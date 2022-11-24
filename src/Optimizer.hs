@@ -1,5 +1,5 @@
 module Optimizer where
-
+{-
 import Lang
 import Subst
 import MonadFD4
@@ -70,3 +70,4 @@ cp t = visit cp1 t where
     cp1 t' = return t'
 
 -- se podrian componer cf1 y cp1 y llamar a visit con esa funcion compuesta para desminuir la cantidad de iteraciones que se necesitan
+-}

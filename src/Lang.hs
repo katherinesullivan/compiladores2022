@@ -21,7 +21,7 @@ Definiciones de distintos tipos de datos:
 module Lang where
 
 import           Common                         ( Pos )
-import           Data.List.Extra                ( nubSort )
+import           Data.List.Extra            ( nubSort )
 
 -- | AST the términos superficiales
 data STm info ty var =
