@@ -81,20 +81,20 @@ getPos :: P Pos
 getPos = do pos <- getPosition
             return $ Pos (sourceLine pos) (sourceColumn pos)
 
-tyatom :: P STy
-tyatom = (reserved "Nat" >> return NatSTy)
+tyatom :: P SType
+tyatom = (reserved "Nat" >> NatSTy <$> getPos)
          <|> 
-         (do t <- tyIdentifier
-             return (DeclSTy t))
+         (DeclSTy <$> getPos <*> tyIdentifier)
          <|>
          parens typeP
 
-typeP :: P STy
+typeP :: P SType
 typeP = try (do 
+          i <- getPos
           x <- tyatom
           reservedOp "->"
           y <- typeP
-          return (FunSTy x y))
+          return (FunSTy i x y))
         <|> tyatom
           
 const :: P Const
@@ -105,7 +105,8 @@ printOp = do
   i <- getPos
   reserved "print"
   str <- option "" stringLiteral
-  return (SPrint i str)
+  a <- optionMaybe atom
+  return (SPrint i str a)
 
 binary :: String -> BinaryOp -> Assoc -> Operator String () Identity STerm
 binary s f = Ex.Infix (reservedOp s >> return (SBinaryOp NoPos f))
@@ -124,24 +125,33 @@ atom =     (flip SConst <$> const <*> getPos)
        <|> printOp
 
 -- parsea un par (variable : tipo)
-binding :: P (Name, STy)
-binding = do v <- var
-             reservedOp ":"
-             ty <- typeP
-             return (v, ty)
+-- binding :: P (Name, SType)
+-- binding = do v <- var
+--              reservedOp ":"
+--              ty <- typeP
+--              return (v, ty)
 
-binders :: P [(Name, STy)]
-binders = try (do x <- parens binding 
-                  xs <- binders
-                  return (x:xs)) 
-          <|> 
-          return []
-               
+-- binders :: P [(Name, SType)]
+-- binders = try (do x <- parens binding 
+--                   xs <- binders
+--                   return (x:xs)) 
+--           <|> 
+--           return []
+
+multibinders :: P [(Name, SType)]
+multibinders = do args <- many1 var
+                  reservedOp ":"
+                  t <- typeP
+                  return (zip args (repeat t)) 
+
+multibinders0 :: P [(Name, SType)]
+multibinders0 = do args <- many $ parens multibinders
+                   return (concat args)             
 
 lam :: P STerm
 lam = do i <- getPos
          reserved "fun"
-         xs <- binders
+         xs <- multibinders0
          reservedOp "->"
          t <- expr
          return (SLam i xs t)
@@ -166,24 +176,26 @@ ifz = do i <- getPos
 fix :: P STerm
 fix = do i <- getPos
          reserved "fix"
-         xs <- binders
+         xs <- multibinders0
          reservedOp "->"
          t <- expr
          return (SFix i xs t)
+
+multibinderslet :: P [(Name, SType)]
+multibinderslet = try (do v <- var -- para permitir notación amigable en funciones y un binder sin parentesis
+                          l <- multibinders0
+                          reservedOp ":"
+                          ty <- typeP
+                          return ((v, ty):l)) -- estoy agregando la función con el tipo de retorno (el último, no los intermedios) como primer elemento de la lista
+                  <|>
+                  multibinders0 -- para permitir parentesis
 
 letexp :: P STerm
 letexp = do
   i <- getPos
   reserved "let"
   isrec <- try (reserved "rec" >> return True) <|> return False
-  xs <- (
-    try (do v <- var -- para permitir notación amigable en funciones y un binder sin parentesis
-            l <- binders
-            reservedOp ":"
-            ty <- typeP
-            return ((v, ty):l)) -- estoy agregando la función con el tipo de retorno (el último, no los intermedios) como primer elemento de la lista
-    <|>
-    binders) -- para permitir parentesis
+  xs <- multibinderslet
   reservedOp "="  
   def <- expr
   reserved "in"
@@ -193,7 +205,7 @@ letexp = do
 
 -- | Parser de términos
 tm :: P STerm
-tm = app <|> lam <|> ifz -- <|> printOp 
+tm = app <|> lam <|> ifz <|> printOp 
      <|> fix <|> letexp
 
 -- | Parser de declaraciones
@@ -203,10 +215,9 @@ decl = do
      reserved "let"
      isrec <- (try (reserved "rec" >> return True)) <|> return False
      v <- var
-     binds <- try binders <|> return []
-     ty <- try (do reservedOp ":"
-                   typeP)
-           <|> return SNoTy
+     binds <- multibinders0
+     ty <- (do reservedOp ":"
+               typeP)
      reservedOp "="
      t <- expr
      return (SDecl i isrec v ty binds t)

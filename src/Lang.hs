@@ -29,7 +29,7 @@ data STm info ty var =
   | SConst info Const
   | SLam info [(var, ty)] (STm info ty var)
   | SApp info (STm info ty var) (STm info ty var)
-  | SPrint info String 
+  | SPrint info String (Maybe (STm info ty var))
   | SBinaryOp info BinaryOp (STm info ty var) (STm info ty var)
   | SFix info [(var, ty)] (STm info ty var)
   | SIfZ info (STm info ty var) (STm info ty var) (STm info ty var)
@@ -38,23 +38,23 @@ data STm info ty var =
 
 
 -- | AST de Tipos Superficiales
-data STy =
-      NatSTy
-    | FunSTy STy STy
-    | DeclSTy Name
-    | SNoTy
+data STy info =
+      NatSTy info
+    | FunSTy info (STy info) (STy info)
+    | DeclSTy info Name
     deriving (Show,Eq)
 
 -- | AST de Tipos
 data Ty =
-      NatTy
-    | FunTy Ty Ty
-    | NoTy
+      NatTy (Maybe Name)        -- Tal vez llevamos un nombre si vino de
+    | FunTy (Maybe Name) Ty Ty  -- una decl de sinonimos de tipos
     deriving (Show,Eq)
 
 type Name = String
 
-type STerm = STm Pos STy Name -- ^ 'STm', términos superficiales con tipos superficiales, tiene 'Name's como variables ligadas y libres y globales, guarda posición
+type SType = STy Pos
+
+type STerm = STm Pos SType Name -- ^ 'STm', términos superficiales con tipos superficiales, tiene 'Name's como variables ligadas y libres y globales, guarda posición
 
 newtype Const = CNat Int
   deriving Show
@@ -69,14 +69,14 @@ data SDecl a =
   { sdeclPos :: Pos
   , sdeclRec :: Bool
   , sdeclName :: Name
-  , sdeclType :: STy
-  , sdeclBinds :: [(Name, STy)]
+  , sdeclType :: SType
+  , sdeclBinds :: [(Name, SType)]
   , sdeclBody :: a
   }
   | STDecl 
   { sdeclPos :: Pos
   , sdeclName :: Name
-  , stdeclBody :: STy
+  , stdeclBody :: SType
   }
   deriving (Show, Functor)
 
@@ -147,6 +147,10 @@ getInfo (BinaryOp i _ _ _) = i
 
 getTy :: TTerm -> Ty
 getTy = snd . getInfo
+
+getTyName :: Ty -> Maybe Name
+getTyName (NatTy n) = n
+getTyName (FunTy n _ _) = n
 
 getPos :: TTerm -> Pos
 getPos = fst . getInfo
